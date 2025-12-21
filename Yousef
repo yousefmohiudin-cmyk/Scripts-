@@ -1,0 +1,163 @@
+local Players = game:GetService("Players")
+
+local BRAINROT_NAME = "Brainrot" -- exact tool name
+
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(character)
+		local humanoid = character:WaitForChild("Humanoid")
+		local backpack = player:WaitForChild("Backpack")
+
+		local savedTools = {}
+		local equippedTool = nil
+
+		-- Save tools before anything clears them
+		local function saveInventory()
+			savedTools = {}
+			equippedTool = nil
+
+			for _, tool in ipairs(backpack:GetChildren()) do
+				if tool:IsA("Tool") then
+					table.insert(savedTools, tool:Clone())
+				end
+			end
+
+			for _, tool in ipairs(character:GetChildren()) do
+				if tool:IsA("Tool") then
+					equippedTool = tool.Name
+				end
+			end
+		end
+
+		-- Restore tools after reset
+		local function restoreInventory()
+			task.wait() -- wait one frame in case reset already happened
+
+			for _, tool in ipairs(savedTools) do
+				tool.Parent = backpack
+			end
+
+			if equippedTool then
+				local tool = backpack:FindFirstChild(equippedTool)
+				if tool then
+					humanoid:EquipTool(tool)
+				end
+			end
+		end
+
+		-- Detect when Brainrot is equipped
+		character.ChildAdded:Connect(function(child)
+			if child:IsA("Tool") and child.Name == BRAINROT_NAME then
+				saveInventory()
+				task.delay(0.1, restoreInventory)
+			end
+		end)
+	end)
+end)
+
+for _, v in ipairs(game:GetDescendants()) do
+	if v:IsA("LocalScript") and v.Name:lower():find("speed") then
+		v.Disabled = true
+	end
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- CONFIG
+local NORMAL_SPEED = 16
+local BRAINROT_SPEED = 40
+local NORMAL_MAX_VELOCITY = 60
+local BRAINROT_MAX_VELOCITY = 140
+local BRAINROT_NAME = "Brainrot"
+
+
+local brainrotActive = {}
+
+loadstring([[
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+
+local ToggleSpeedEvent = ReplicatedStorage:WaitForChild("ToggleBrainrotSpeed")
+local AdminSpeedEvent = ReplicatedStorage:WaitForChild("AdminSetSpeed")
+
+
+local gui = Instance.new("ScreenGui", player.PlayerGui)
+gui.Name = "BrainrotMenu"
+gui.ResetOnSpawn = false
+
+local function makeButton(text, posY)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.fromScale(0.28, 0.08)
+	b.Position = UDim2.fromScale(0.36, posY)
+	b.Text = text
+	b.TextScaled = true
+	b.BackgroundColor3 = Color3.fromRGB(35,35,35)
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Parent = gui
+	return b
+end
+
+local invBtn = makeButton("Restore Inventory", 0.35)
+local localBtn = makeButton("Disable Local Resets", 0.45)
+local speedBtn = makeButton("Server Speed Validation", 0.55)
+
+
+invBtn.MouseButton1Click:Connect(function()
+	local char = player.Character
+	if not char then return end
+	local backpack = player:FindFirstChild("Backpack")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	for _, tool in ipairs(char:GetChildren()) do
+		if tool:IsA("Tool") then
+			tool.Parent = backpack
+		end
+	end
+	if hum then hum:UnequipTools() end
+end)
+
+
+localBtn.MouseButton1Click:Connect(function()
+	for _, v in ipairs(player.PlayerGui:GetDescendants()) do
+		if v:IsA("LocalScript") and v.Name:lower():find("reset") then
+			v.Disabled = true
+		end
+	end
+end)
+
+
+local speedEnabled = false
+speedBtn.MouseButton1Click:Connect(function()
+	speedEnabled = not speedEnabled
+	ToggleSpeedEvent:FireServer(speedEnabled)
+	speedBtn.Text = speedEnabled and "Speed Validation: ON" or "Speed Validation: OFF"
+end)
+]])()
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(character)
+		local humanoid = character:WaitForChild("Humanoid")
+		brainrotActive[player] = false
+
+		character.ChildAdded:Connect(function(child)
+			if child:IsA("Tool") and child.Name == BRAINROT_NAME then
+				brainrotActive[player] = true
+			end
+		end)
+
+		character.ChildRemoved:Connect(function(child)
+			if child:IsA("Tool") and child.Name == BRAINROT_NAME then
+				brainrotActive[player] = false
+			end
+		end)
+
+		RunService.Heartbeat:Connect(function()
+			if not humanoid.Parent then return end
+
+			if brainrotActive[player] then
+				humanoid.WalkSpeed = BRAINROT_SPEED
+			else
+				humanoid.WalkSpeed = NORMAL_SPEED
+			end
+		end)
+	end)
+end)
